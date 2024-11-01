@@ -19,20 +19,19 @@ struct RunPayload: Identifiable, Codable{
     let distance: Double
     let pace: Double
     let time: Int
-   // let route: [GeoJSONCoordinate]//
+    let route: [GeoJSONCoordinate]//
     
     enum CodingKeys: String, CodingKey{
-        case id, distance, pace, time
+        case id, distance, pace, time, route
         case createdAt = "created_at"
         case userId = "user_id"
     }
 }
 
-//struct GeoJSONCoordinate: Codable {
-    //let longtitude: Double
-    //let latitude: Double
-//}
-
+struct GeoJSONCoordinate: Codable {
+    let longtitude: Double
+    let latitude: Double
+}
 final class DatabaseService  {
     
     static let shared = DatabaseService()
@@ -49,8 +48,8 @@ final class DatabaseService  {
         
     }
     //reading
-    func fetchWorkouts() async throws -> [RunPayload]{
-        return try await supabase.from(Table.workouts).select().execute().value
+    func fetchWorkouts(for userID: UUID) async throws -> [RunPayload]{
+        return try await supabase.from(Table.workouts).select().in("user_id", values: [userID]).execute().value
         
     }
     

@@ -17,10 +17,10 @@ class RunTracker: NSObject, ObservableObject{
     @Published var distance = 0.0
     @Published var pace = 0.0
     @Published var elapsedTime = 0
-    //@Published var locations = [CLLocationCoordinate2D]() //
+    @Published var locations = [CLLocationCoordinate2D]() //
     
     private var timer: Timer?
-    
+    private var startTime = Date.now
     //Location Tracking
     private var locationManager: CLLocationManager?
     private var startLocation: CLLocation?
@@ -46,6 +46,8 @@ class RunTracker: NSObject, ObservableObject{
         lastLocation = nil
         distance = 0.0
         pace = 0.0
+        elapsedTime = 0
+        startTime = .now
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self else { return }
 
@@ -93,18 +95,42 @@ class RunTracker: NSObject, ObservableObject{
         timer?.invalidate()
         timer = nil
         postToDatabase()
+        postToHealthStore()
     }
     
     func postToDatabase() {
         Task {
             do {
                 guard let userId = AuthService.shared.currentSession?.user.id else { return }
-                let run = RunPayload(createdAt: .now, userId: userId, distance: distance, pace: pace, time: elapsedTime)
+                let run = RunPayload(createdAt: .now, userId: userId, distance: distance, pace: pace, time: elapsedTime, route: convertToGeoJSONCoordinates(location: locations))
                 try await DatabaseService.shared.saveWorkout(run: run)
             } catch {
                 print(error.localizedDescription)
             }
         }
+    }
+    
+    func postToHealthStore() {
+        Task {
+            do {
+                try await HealthManager.shared.addWorkout(startDate: startTime, endDate: .now, duration: Double(elapsedTime), distance: distance, kCalBurned: calculateKCalBurned())
+            } catch {
+                print(error.localizedDescription)
+            }
+        }
+    }
+    
+    func calculateKCalBurned() -> Double {
+        let weight: Double = 75
+        let duration: Double = Double(elapsedTime)/(60*60)
+        
+        let kilos: Double = (distance/1000)
+        let met: Double = (1.57) * (kilos/duration) - 3.15
+        
+        print("vals: ", weight, duration, kilos, met)
+        print("answer: ", weight * duration * met)
+        return met * weight *   duration
+        
     }
 }
 
@@ -117,7 +143,7 @@ extension RunTracker: CLLocationManagerDelegate{
             self?.region.center = location.coordinate
         }
         
-        //self.locations.append(location.coordinate) //
+        self.locations.append(location.coordinate) //
         
         if startLocation == nil {
             startLocation = location
@@ -132,6 +158,8 @@ extension RunTracker: CLLocationManagerDelegate{
     }
 }
 
-//func convertToGeoJSONCoordinates(location: [CLLocationCoordinate2D]) -> [GeoJSONCoordinate] {
-  //  return location.map { GeoJSONCoordinate(longtitude: $0.longtitude, latitude: $0.latitude)}
-//}
+func convertToGeoJSONCoordinates(location: [CLLocationCoordinate2D]) -> [GeoJSONCoordinate] {
+    return location.map { GeoJSONCoordinate(longtitude: $0.longitude, latitude: $0.latitude)}
+}
+
+

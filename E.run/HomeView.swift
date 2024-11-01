@@ -21,7 +21,7 @@ struct AreaMap: View {
             }
         )
         return Map(coordinateRegion: binding, showsUserLocation: true)
-            .ignoresSafeArea()
+            .ignoresSafeArea(.all, edges: .top)
     }
 }
 
